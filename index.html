@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -261,23 +261,27 @@
     <script src="https://cdn.jsdelivr.net/npm/cannon@0.20.0/build/cannon.min.js"></script>
     
     <script>
-        // 即座に動作する統合JavaScript
-        let game;
-        
-        // ページ読み込み完了後に初期化
+    // ページ読み込み完了後に初期化
         window.addEventListener('load', () => {
-            document.getElementById('status').textContent = 'ゲーム初期化中...';
+            document.getElementById('status').textContent = 'ライブラリ確認中...';
             
-            // Three.jsとCannon.jsの読み込み確認
+            // Three.jsの読み込み確認
             if (typeof THREE === 'undefined') {
                 document.getElementById('status').textContent = 'Three.js読み込みエラー';
+                console.error('Three.js not loaded');
                 return;
             }
             
+            // Cannon.jsの読み込み確認
             if (typeof CANNON === 'undefined') {
-                document.getElementById('status').textContent = 'Cannon.js読み込みエラー';
+                document.getElementById('status').textContent = 'Cannon.js読み込みエラー - 代替手段で継続';
+                console.error('Cannon.js not loaded, using fallback');
+                // 物理演算なしで継続
+                initGameWithoutPhysics();
                 return;
             }
+            
+            document.getElementById('status').textContent = 'ゲーム初期化中...';
             
             try {
                 game = new BocciaGame();
@@ -290,6 +294,175 @@
                 console.error('Game initialization error:', error);
             }
         });
+    
+        // 物理演算なしの代替版
+        function initGameWithoutPhysics() {
+            try {
+                game = new SimpleBocciaGame();
+                document.getElementById('status').textContent = '簡易版で開始！';
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 2000);
+            } catch (error) {
+                document.getElementById('status').textContent = '簡易版エラー: ' + error.message;
+            }
+        }
+    
+        // 物理演算なしの簡易版ゲーム
+        class SimpleBocciaGame {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: document.getElementById('gameCanvas'), 
+                    antialias: true 
+                });
+                
+                this.balls = [];
+                this.currentPlayer = 'red';
+                this.ballsRemaining = { red: 6, blue: 6 };
+                this.gamePhase = 'setup';
+                this.score = { red: 0, blue: 0 };
+                
+                this.throwParams = {
+                    horizontalAngle: 0,
+                    verticalAngle: 0,
+                    power: 5,
+                    spin: 0,
+                    spinDirection: 'backspin'
+                };
+            
+                this.init();
+            }
+            
+            init() {
+                this.setupRenderer();
+                this.setupLighting();
+                this.setupCourt();
+                this.setupControls();
+                this.setupCamera();
+                this.animate();
+            }
+            
+            setupRenderer() {
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setClearColor(0x87CEEB);
+            }
+            
+            setupLighting() {
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+                this.scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(10, 10, 5);
+                this.scene.add(directionalLight);
+            }
+            
+            setupCourt() {
+                const courtGeometry = new THREE.PlaneGeometry(12.5, 6);
+                const courtMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+                const court = new THREE.Mesh(courtGeometry, courtMaterial);
+                court.rotation.x = -Math.PI / 2;
+                this.scene.add(court);
+                
+                // ライン描画
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                const vLineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-3, 0.01, -2.5),
+                    new THREE.Vector3(3, 0.01, -2.5)
+                ]);
+                const vLine = new THREE.Line(vLineGeometry, lineMaterial);
+                this.scene.add(vLine);
+            }
+            
+            setupCamera() {
+                this.camera.position.set(0, 1.7, 5);
+                this.camera.lookAt(0, 0, 0);
+            }
+        
+            setupControls() {
+                // スライダーイベント（同じ）
+                document.getElementById('horizontalSlider').addEventListener('input', (e) => {
+                    this.throwParams.horizontalAngle = parseFloat(e.target.value);
+                    document.getElementById('horizontalAngle').textContent = e.target.value + '°';
+                });
+                
+                document.getElementById('verticalSlider').addEventListener('input', (e) => {
+                    this.throwParams.verticalAngle = parseFloat(e.target.value);
+                    document.getElementById('verticalAngle').textContent = e.target.value + '°';
+                });
+                
+                document.getElementById('powerSlider').addEventListener('input', (e) => {
+                    this.throwParams.power = parseFloat(e.target.value);
+                    document.getElementById('powerValue').textContent = e.target.value;
+                });
+            
+                document.getElementById('spinSlider').addEventListener('input', (e) => {
+                    this.throwParams.spin = parseFloat(e.target.value);
+                    document.getElementById('spinValue').textContent = e.target.value;
+                });
+            
+                document.getElementById('throwButton').addEventListener('click', () => {
+                    this.createStaticBall();
+                });
+            }
+        
+            createStaticBall() {
+                const color = this.currentPlayer === 'red' ? 0xff0000 : 0x0000ff;
+                const ballGeometry = new THREE.SphereGeometry(0.135, 32, 32);
+                const ballMaterial = new THREE.MeshLambertMaterial({ color: color });
+                const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+                
+                // ランダムな位置に配置
+                ball.position.set(
+                    (Math.random() - 0.5) * 8,
+                    0.135,
+                    (Math.random() - 0.5) * 4
+                );
+                
+                this.scene.add(ball);
+                this.balls.push(ball);
+                
+                this.ballsRemaining[this.currentPlayer]--;
+                this.currentPlayer = this.currentPlayer === 'red' ? 'blue' : 'red';
+                
+                this.updateUI();
+                this.showMessage(`${this.currentPlayer === 'red' ? '赤' : '青'}のターン！`);
+            }
+            
+            updateUI() {
+                document.getElementById('playerTurn').textContent = this.currentPlayer === 'red' ? '赤' : '青';
+                document.getElementById('ballCount').textContent = this.ballsRemaining[this.currentPlayer];
+            }
+            
+            showMessage(message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 20px 40px;
+                    border-radius: 10px;
+                    font-size: 18px;
+                    font-weight: bold;
+                    z-index: 1000;
+                `;
+                messageDiv.textContent = message;
+                document.body.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 2000);
+            }
+        
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.renderer.render(this.scene, this.camera);
+            }
+        }    
 
         // メインゲームクラス
         class BocciaGame {
