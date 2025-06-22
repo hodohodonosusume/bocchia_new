@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boccia Game - ボッチャ</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #87CEEB, #228B22);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #87CEEB;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            min-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .control-panel h3 {
+            margin-bottom: 20px;
+            color: #FFD700;
+            text-align: center;
+            font-size: 1.2em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #E0E0E0;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #333;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #FFD700;
+            cursor: pointer;
+            border: 2px solid #FFF;
+        }
+
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: none;
+            background: #444;
+            color: white;
+            font-size: 14px;
+        }
+
+        #throwButton {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        #throwButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .view-controls {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .view-controls button {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .view-controls button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .view-controls button.active {
+            background: #FFD700;
+            color: #000;
+            font-weight: bold;
+        }
+
+        #gameInfo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            min-width: 200px;
+        }
+
+        #score {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #score span:first-child {
+            color: #FF6B6B;
+        }
+
+        #score span:last-child {
+            color: #6B9EFF;
+        }
+
+        #currentPlayer {
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        #ballsRemaining {
+            text-align: center;
+            color: #E0E0E0;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="controls">
+            <div class="control-panel">
+                <h3>投球設定</h3>
+                
+                <div class="control-group">
+                    <label>上下角度: <span id="verticalAngle">0°</span></label>
+                    <input type="range" id="verticalSlider" min="-45" max="45" value="0">
+                </div>
+                
+                <div class="control-group">
+                    <label>左右角度: <span id="horizontalAngle">0°</span></label>
+                    <input type="range" id="horizontalSlider" min="-45" max="45" value="0">
+                </div>
+                
+                <div class="control-group">
+                    <label>発射速度: <span id="powerValue">5</span> m/s</label>
+                    <input type="range" id="powerSlider" min="0.5" max="15" step="0.1" value="5">
+                </div>
+                
+                <div class="control-group">
+                    <label>回転速度: <span id="spinValue">0</span></label>
+                    <input type="range" id="spinSlider" min="-10" max="10" step="0.1" value="0">
+                </div>
+                
+                <div class="control-group">
+                    <label>回転方向:</label>
+                    <select id="spinDirection">
+                        <option value="backspin">バックスピン</option>
+                        <option value="topspin">トップスピン</option>
+                        <option value="sidespin-left">左サイドスピン</option>
+                        <option value="sidespin-right">右サイドスピン</option>
+                    </select>
+                </div>
+                
+                <button id="throwButton">ジャック投球</button>
+            </div>
+            
+            <div class="view-controls">
+                <button id="firstPersonView" class="active">一人称</button>
+                <button id="overheadView">俯瞰</button>
+                <button id="sideView">サイド</button>
+                <button id="ballFollowView">ボール追従</button>
+            </div>
+        </div>
+        
+        <div id="gameInfo">
+            <div id="score">
+                <span>赤: <span id="redScore">0</span></span>
+                <span>青: <span id="blueScore">0</span></span>
+            </div>
+            <div id="currentPlayer">現在のプレイヤー: <span id="playerTurn">赤</span></div>
+            <div id="ballsRemaining">残りボール: <span id="ballCount">6</span></div>
+        </div>
+        
+        <div id="status">Three.js読み込み中...</div>
+    </div>
+
+    <!-- CDNから直接読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.20.0/cannon.min.js"></script>
+    
+    <script>
+        // 即座に動作する統合JavaScript
+        let game;
+        
+        // ページ読み込み完了後に初期化
+        window.addEventListener('load', () => {
+            document.getElementById('status').textContent = 'ゲーム初期化中...';
+            
+            // Three.jsとCannon.jsの読み込み確認
+            if (typeof THREE === 'undefined') {
+                document.getElementById('status').textContent = 'Three.js読み込みエラー';
+                return;
+            }
+            
+            if (typeof CANNON === 'undefined') {
+                document.getElementById('status').textContent = 'Cannon.js読み込みエラー';
+                return;
+            }
+            
+            try {
+                game = new BocciaGame();
+                document.getElementById('status').textContent = 'ゲーム開始！';
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 2000);
+            } catch (error) {
+                document.getElementById('status').textContent = 'ゲーム初期化エラー: ' + error.message;
+                console.error('Game initialization error:', error);
+            }
+        });
+
+        // メインゲームクラス
+        class BocciaGame {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: document.getElementById('gameCanvas'), 
+                    antialias: true 
+                });
+                
+                this.world = new CANNON.World();
+                this.world.gravity.set(0, -9.82, 0);
+                this.world.broadphase = new CANNON.NaiveBroadphase();
+                
+                this.balls = [];
+                this.jackBall = null;
+                this.currentPlayer = 'red';
+                this.ballsRemaining = { red: 6, blue: 6 };
+                this.gamePhase = 'setup';
+                this.score = { red: 0, blue: 0 };
+                
+                this.viewMode = 'firstPerson';
+                this.throwParams = {
+                    horizontalAngle: 0,
+                    verticalAngle: 0,
+                    power: 5,
+                    spin: 0,
+                    spinDirection: 'backspin'
+                };
+                
+                this.init();
+            }
+            
+            init() {
+                this.setupRenderer();
+                this.setupWorld();
+                this.setupLighting();
+                this.setupCourt();
+                this.setupControls();
+                this.setupCamera();
+                
+                this.animate();
+            }
+            
+            setupRenderer() {
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.setClearColor(0x87CEEB);
+            }
+            
+            setupWorld() {
+                // 地面の物理設定
+                const groundShape = new CANNON.Box(new CANNON.Vec3(6.25, 0.1, 3));
+                const groundBody = new CANNON.Body({ mass: 0 });
+                groundBody.addShape(groundShape);
+                groundBody.position.set(0, -0.1, 0);
+                groundBody.material = new CANNON.Material({ friction: 0.8, restitution: 0.1 });
+                this.world.add(groundBody);
+            }
+            
+            setupLighting() {
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+                this.scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(10, 10, 5);
+                directionalLight.castShadow = true;
+                this.scene.add(directionalLight);
+            }
+            
+            setupCourt() {
+                // コート
+                const courtGeometry = new THREE.PlaneGeometry(12.5, 6);
+                const courtMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+                const court = new THREE.Mesh(courtGeometry, courtMaterial);
+                court.rotation.x = -Math.PI / 2;
+                court.receiveShadow = true;
+                this.scene.add(court);
+                
+                // ライン描画
+                this.drawCourtLines();
+            }
+            
+            drawCourtLines() {
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                
+                // V-line
+                const vLineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-3, 0.01, -2.5),
+                    new THREE.Vector3(3, 0.01, -2.5)
+                ]);
+                const vLine = new THREE.Line(vLineGeometry, lineMaterial);
+                this.scene.add(vLine);
+                
+                // Center line
+                const centerLineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0.01, -6.25),
+                    new THREE.Vector3(0, 0.01, 6.25)
+                ]);
+                const centerLine = new THREE.Line(centerLineGeometry, lineMaterial);
+                this.scene.add(centerLine);
+            }
+            
+            setupCamera() {
+                this.camera.position.set(0, 1.7, 5);
+                this.camera.lookAt(0, 0, 0);
+            }
+            
+            setupControls() {
+                // スライダーイベント
+                document.getElementById('horizontalSlider').addEventListener('input', (e) => {
+                    this.throwParams.horizontalAngle = parseFloat(e.target.value);
+                    document.getElementById('horizontalAngle').textContent = e.target.value + '°';
+                });
+                
+                document.getElementById('verticalSlider').addEventListener('input', (e) => {
+                    this.throwParams.verticalAngle = parseFloat(e.target.value);
+                    document.getElementById('verticalAngle').textContent = e.target.value + '°';
+                });
+                
+                document.getElementById('powerSlider').addEventListener('input', (e) => {
+                    this.throwParams.power = parseFloat(e.target.value);
+                    document.getElementById('powerValue').textContent = e.target.value;
+                });
+                
+                document.getElementById('spinSlider').addEventListener('input', (e) => {
+                    this.throwParams.spin = parseFloat(e.target.value);
+                    document.getElementById('spinValue').textContent = e.target.value;
+                });
+                
+                document.getElementById('spinDirection').addEventListener('change', (e) => {
+                    this.throwParams.spinDirection = e.target.value;
+                });
+                
+                // 投球ボタン
+                document.getElementById('throwButton').addEventListener('click', () => {
+                    this.executeThrow();
+                });
+                
+                // 視点切り替え
+                document.getElementById('firstPersonView').addEventListener('click', () => {
+                    this.setViewMode('firstPerson');
+                });
+                document.getElementById('overheadView').addEventListener('click', () => {
+                    this.setViewMode('overhead');
+                });
+                document.getElementById('sideView').addEventListener('click', () => {
+                    this.setViewMode('side');
+                });
+                document.getElementById('ballFollowView').addEventListener('click', () => {
+                    this.setViewMode('ballFollow');
+                });
+            }
+            
+            setViewMode(mode) {
+                this.viewMode = mode;
+                
+                // ボタンの状態更新
+                document.querySelectorAll('.view-controls button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                switch(mode) {
+                    case 'firstPerson':
+                        document.getElementById('firstPersonView').classList.add('active');
+                        this.camera.position.set(0, 1.7, 5);
+                        this.camera.lookAt(0, 0, 0);
+                        break;
+                    case 'overhead':
+                        document.getElementById('overheadView').classList.add('active');
+                        this.camera.position.set(0, 15, 0);
+                        this.camera.lookAt(0, 0, 0);
+                        break;
+                    case 'side':
+                        document.getElementById('sideView').classList.add('active');
+                        this.camera.position.set(10, 5, 0);
+                        this.camera.lookAt(0, 0, 0);
+                        break;
+                    case 'ballFollow':
+                        document.getElementById('ballFollowView').classList.add('active');
+                        this.camera.position.set(0, 3, 3);
+                        this.camera.lookAt(0, 0, 0);
+                        break;
+                }
+            }
+            
+            createBall(color, position) {
+                // 3Dボール
+                const ballGeometry = new THREE.SphereGeometry(0.135, 32, 32);
+                const ballMaterial = new THREE.MeshLambertMaterial({ color: color });
+                const ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
+                ballMesh.castShadow = true;
+                ballMesh.receiveShadow = true;
+                this.scene.add(ballMesh);
+                
+                // 物理ボール
+                const ballShape = new CANNON.Sphere(0.135);
+                const ballBody = new CANNON.Body({ mass: 0.275 });
+                ballBody.addShape(ballShape);
+                ballBody.position.copy(position);
+                ballBody.material = new CANNON.Material({
+                    friction: 0.8,
+                    restitution: 0.2
+                });
+                this.world.add(ballBody);
+                
+                return {
+                    mesh: ballMesh,
+                    body: ballBody,
+                    color: color === 0xff0000 ? 'red' : color === 0x0000ff ? 'blue' : 'white'
+                };
+            }
+            
+            executeThrow() {
+                if (this.gamePhase === 'setup') {
+                    this.throwJackBall();
+                } else {
+                    this.throwBall();
+                }
+            }
+            
+            throwJackBall() {
+                if (this.jackBall) return;
+                
+                const position = new CANNON.Vec3(0, 1, 4);
+                this.jackBall = this.createBall(0xffffff, position);
+                
+                // ランダムな位置に投球
+                const targetX = (Math.random() - 0.5) * 4;
+                const targetZ = Math.random() * -3 - 1;
+                
+                this.jackBall.body.velocity.set(targetX, 1, targetZ - 4);
+                
+                this.gamePhase = 'playing';
+                document.getElementById('throwButton').textContent = '投球';
+                
+                this.showMessage('ジャックボール投球！ゲーム開始！');
+            }
+            
+            throwBall() {
+                if (this.ballsRemaining[this.currentPlayer] <= 0) return;
+                
+                const color = this.currentPlayer === 'red' ? 0xff0000 : 0x0000ff;
+                const position = new CANNON.Vec3(
+                    this.currentPlayer === 'red' ? -1.5 : 1.5,
+                    1,
+                    4.5
+                );
+                
+                const ball = this.createBall(color, position);
+                
+                // 投球方向計算
+                const horizontalRad = (this.throwParams.horizontalAngle * Math.PI) / 180;
+                const verticalRad = (this.throwParams.verticalAngle * Math.PI) / 180;
+                
+                const direction = new THREE.Vector3(
+                    Math.sin(horizontalRad),
+                    Math.sin(verticalRad),
+                    -Math.cos(horizontalRad) * Math.cos(verticalRad)
+                );
+                
+                direction.normalize();
+                
+                // 力の適用
+                ball.body.velocity.set(
+                    direction.x * this.throwParams.power,
+                    direction.y * this.throwParams.power,
+                    direction.z * this.throwParams.power
+                );
+                
+                // スピン適用
+                this.applySpin(ball.body);
+                
+                this.balls.push(ball);
+                this.ballsRemaining[this.currentPlayer]--;
+                
+                this.updateUI();
+                this.switchPlayer();
+                
+                this.showMessage(`${this.currentPlayer === 'red' ? '赤' : '青'}が投球！`);
+            }
+            
+            applySpin(body) {
+                const spinVector = new CANNON.Vec3();
+                
+                switch (this.throwParams.spinDirection) {
+                    case 'backspin':
+                        spinVector.set(this.throwParams.spin, 0, 0);
+                        break;
+                    case 'topspin':
+                        spinVector.set(-this.throwParams.spin, 0, 0);
+                        break;
+                    case 'sidespin-left':
+                        spinVector.set(0, this.throwParams.spin, 0);
+                        break;
+                    case 'sidespin-right':
+                        spinVector.set(0, -this.throwParams.spin, 0);
+                        break;
+                }
+                
+                body.angularVelocity.copy(spinVector);
+            }
+            
+            switchPlayer() {
+                this.currentPlayer = this.currentPlayer === 'red' ? 'blue' : 'red';
+            }
+            
+            updateUI() {
+                document.getElementById('playerTurn').textContent = this.currentPlayer === 'red' ? '赤' : '青';
+                document.getElementById('ballCount').textContent = this.ballsRemaining[this.currentPlayer];
+                document.getElementById('redScore').textContent = this.score.red;
+                document.getElementById('blueScore').textContent = this.score.blue;
+            }
+            
+            showMessage(message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 20px 40px;
+                    border-radius: 10px;
+                    font-size: 18px;
+                    font-weight: bold;
+                    z-index: 1000;
+                `;
+                messageDiv.textContent = message;
+                document.body.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 3000);
+            }
+            
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                // 物理演算更新
+                this.world.step(1/60);
+                
+                // ボール位置同期
+                this.balls.forEach(ball => {
+                    ball.mesh.position.copy(ball.body.position);
+                    ball.mesh.quaternion.copy(ball.body.quaternion);
+                });
+                
+                if (this.jackBall) {
+                    this.jackBall.mesh.position.copy(this.jackBall.body.position);
+                    this.jackBall.mesh.quaternion.copy(this.jackBall.body.quaternion);
+                }
+                
+                // レンダリング
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+        
+        // ウィンドウリサイズ対応
+        window.addEventListener('resize', () => {
+            if (game) {
+                game.camera.aspect = window.innerWidth / window.innerHeight;
+                game.camera.updateProjectionMatrix();
+                game.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+    </script>
+</body>
+</html>
